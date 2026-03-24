@@ -25,7 +25,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 function RequireAdmin({ children }: { children: React.ReactNode }) {
-  const { data: user } = useMe()
+  const { data: user, isLoading } = useMe()
+  if (isLoading) return <div style={{ padding: 40 }}>Laden…</div>
   if (user?.role !== 'admin') return <div style={{ padding: 40 }}>Kein Zugriff.</div>
   return <>{children}</>
 }
