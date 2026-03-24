@@ -301,17 +301,19 @@ export default function MembersPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [columns, setColumns] = useState<string[]>(DEFAULT_COLS)
   const [activeViewId, setActiveViewId] = useState<number | null>(null)
+  const [sortBy, setSortBy] = useState('last_name')
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const qc = useQueryClient()
   const groupId = searchParams.get('group') ? Number(searchParams.get('group')) : null
 
-  useEffect(() => { setPage(1); setSelected(new Set()) }, [groupId, search])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [groupId, search, sortBy, sortDir])
 
   // Data queries
   const { data, isLoading } = useQuery({
-    queryKey: ['members', page, search, groupId],
-    queryFn: () => api.get('/members', { params: { page, size: 25, search: search || undefined, group_id: groupId ?? undefined, active_only: false } }).then(r => r.data),
+    queryKey: ['members', page, search, groupId, sortBy, sortDir],
+    queryFn: () => api.get('/members', { params: { page, size: 25, search: search || undefined, group_id: groupId ?? undefined, active_only: false, sort_by: sortBy, sort_dir: sortDir } }).then(r => r.data),
   })
 
   const { data: groupsTree = [] } = useQuery<GroupNode[]>({
@@ -383,6 +385,12 @@ export default function MembersPage() {
   }
   function toggle(id: number) {
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
+  function handleSort(name: string) {
+    if (name === 'age') return  // calculated, not sortable in DB
+    if (sortBy === name) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(name); setSortDir('asc') }
   }
 
   // Column headers (visible columns only, in order)
@@ -466,11 +474,22 @@ export default function MembersPage() {
                   <th style={{ padding: '9px 12px', width: 36 }}>
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} />
                   </th>
-                  {visibleFields.map(f => (
-                    <th key={f.name} style={{ padding: '9px 12px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-                      {f.label}
-                    </th>
-                  ))}
+                  {visibleFields.map(f => {
+                    const sortable = f.name !== 'age'
+                    const active = sortBy === f.name
+                    return (
+                      <th key={f.name}
+                        onClick={() => handleSort(f.name)}
+                        style={{ padding: '9px 12px', fontSize: 11, fontWeight: 700, color: active ? '#2a5298' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', cursor: sortable ? 'pointer' : 'default', userSelect: 'none' }}>
+                        {f.label}
+                        {sortable && (
+                          <span style={{ marginLeft: 4, opacity: active ? 1 : 0.25 }}>
+                            {active ? (sortDir === 'asc' ? '▲' : '▼') : '▲'}
+                          </span>
+                        )}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
