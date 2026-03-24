@@ -4,39 +4,35 @@ from app.core.security import get_password_hash
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.models.user import User, Role
-from app.models.field import CustomField, FieldType
+from app.models.field import CustomField
 import json
 
+# is_system=True  → Stammdaten (Typ gesperrt, nicht löschbar)
+# is_system=False → Kontakt / Mitgliedschaft / Sonstiges (voll bearbeitbar)
 SYSTEM_FIELDS = [
-    # name, label, field_type, category, options, is_required, sort_order
-    ("member_number", "Mitgliedsnummer",  "text",     "Mitgliedschaft", None, False, 0),
-    ("first_name",    "Vorname",          "text",     "Stammdaten",     None, True,  1),
-    ("last_name",     "Nachname",         "text",     "Stammdaten",     None, True,  2),
-    ("gender",        "Geschlecht",       "select",   "Stammdaten",
-     json.dumps(["männlich", "weiblich", "divers"]), False, 3),
-    ("birthdate",     "Geburtsdatum",     "date",     "Stammdaten",     None, False, 4),
-    ("email",         "E-Mail",           "text",     "Kontakt",        None, False, 5),
-    ("phone",         "Telefon",          "text",     "Kontakt",        None, False, 6),
-    ("mobile",        "Mobil",            "text",     "Kontakt",        None, False, 7),
-    ("street",        "Straße",           "text",     "Kontakt",        None, False, 8),
-    ("zip_code",      "PLZ",              "text",     "Kontakt",        None, False, 9),
-    ("city",          "Ort",              "text",     "Kontakt",        None, False, 10),
-    ("entry_date",    "Eintrittsdatum",   "date",     "Mitgliedschaft", None, False, 1),
-    ("exit_date",     "Austrittsdatum",   "date",     "Mitgliedschaft", None, False, 2),
-    ("status",        "Mitgliedstatus",   "select",   "Mitgliedschaft",
-     json.dumps(["aktiv", "inaktiv", "Ehrenmitglied", "Gastmitglied"]), False, 3),
-    ("fee_status",    "Beitragsstatus",   "select",   "Mitgliedschaft",
-     json.dumps(["bezahlt", "ausstehend", "befreit"]), False, 4),
-    ("is_active",     "Aktiv",            "checkbox", "Mitgliedschaft", None, False, 5),
-    ("photo_url",     "Foto",             "image",    "Stammdaten",     None, False, 99),
-    ("notes_field",   "Notizen",          "textarea", "Sonstiges",      None, False, 0),
+    # name, label, field_type, category, options, is_required, sort_order, is_system
+    ("first_name",    "Vorname",        "text",     "Stammdaten",     None, True,  1, True),
+    ("last_name",     "Nachname",       "text",     "Stammdaten",     None, True,  2, True),
+    ("gender",        "Geschlecht",     "select",   "Stammdaten",
+     json.dumps(["männlich", "weiblich", "divers"]),         False, 3, True),
+    ("birthdate",     "Geburtsdatum",   "date",     "Stammdaten",     None, False, 4, True),
+    ("photo_url",     "Foto",           "image",    "Stammdaten",     None, False, 99, True),
+    ("email",         "E-Mail",         "text",     "Kontakt",        None, False, 5, False),
+    ("phone",         "Telefon",        "text",     "Kontakt",        None, False, 6, False),
+    ("mobile",        "Mobil",          "text",     "Kontakt",        None, False, 7, False),
+    ("street",        "Straße",         "text",     "Kontakt",        None, False, 8, False),
+    ("zip_code",      "PLZ",            "text",     "Kontakt",        None, False, 9, False),
+    ("city",          "Ort",            "text",     "Kontakt",        None, False, 10, False),
+    ("member_number", "Mitgliedsnummer","text",     "Mitgliedschaft", None, False, 0, False),
+    ("entry_date",    "Eintrittsdatum", "date",     "Mitgliedschaft", None, False, 1, False),
+    ("exit_date",     "Austrittsdatum", "date",     "Mitgliedschaft", None, False, 2, False),
+    ("notes_field",   "Notizen",        "textarea", "Sonstiges",      None, False, 0, False),
 ]
 
 
 def init_db():
     Base.metadata.create_all(bind=engine)
 
-    # Add is_system column if it does not exist yet
     with engine.connect() as conn:
         conn.execute(text(
             "ALTER TABLE custom_fields ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT FALSE"
@@ -44,7 +40,6 @@ def init_db():
         conn.commit()
 
     with Session(engine) as db:
-        # Default admin user
         if not db.query(User).filter(User.username == "admin").first():
             db.add(User(
                 username="admin",
@@ -56,18 +51,14 @@ def init_db():
             db.commit()
             print("Created default admin user (password: admin)")
 
-        # Seed system fields (insert only if not present)
-        for (name, label, ftype, category, options, is_required, sort_order) in SYSTEM_FIELDS:
+        for row in SYSTEM_FIELDS:
+            name, label, ftype, category, options, is_required, sort_order, is_system = row
             if not db.query(CustomField).filter(CustomField.name == name).first():
                 db.add(CustomField(
-                    name=name,
-                    label=label,
-                    field_type=ftype,
-                    category=category,
-                    options=options,
-                    is_required=is_required,
-                    sort_order=sort_order,
-                    is_system=True,
+                    name=name, label=label, field_type=ftype,
+                    category=category, options=options,
+                    is_required=is_required, sort_order=sort_order,
+                    is_system=is_system,
                 ))
         db.commit()
         print("System fields seeded.")
