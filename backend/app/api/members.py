@@ -81,6 +81,7 @@ def list_members(
     size: int = Query(25, ge=1, le=100),
     search: Optional[str] = None,
     active_only: bool = True,
+    group_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -93,6 +94,8 @@ def list_members(
             (Member.last_name.ilike(f"%{search}%")) |
             (Member.email.ilike(f"%{search}%"))
         )
+    if group_id is not None:
+        q = q.join(Member.group_memberships).filter(GroupMembership.group_id == group_id)
     total = q.count()
     items = q.order_by(Member.last_name).offset((page - 1) * size).limit(size).all()
     return {"items": items, "total": total, "page": page, "size": size}
