@@ -40,7 +40,9 @@ def init_db():
         conn.execute(text(
             "ALTER TABLE custom_fields ADD COLUMN IF NOT EXISTS default_value TEXT"
         ))
-        conn.commit()
+        # Add new enum values (must be outside a transaction in PG)
+        conn.execute(text("COMMIT"))
+        conn.execute(text("ALTER TYPE fieldtype ADD VALUE IF NOT EXISTS 'email'"))
 
     with Session(engine) as db:
         if not db.query(User).filter(User.username == "admin").first():
