@@ -60,7 +60,7 @@ function NodeBox({ node, expanded, onClick }: { node: GroupNode; expanded: boole
           padding: '1px 4px', minWidth: 16, textAlign: 'center', lineHeight: '14px',
         }}>{node.member_count}</span>
       </div>
-      <div style={{ fontSize: 11.5, fontWeight: 500, color: '#374151', lineHeight: 1.3, wordBreak: 'break-word' }}>
+      <div lang='de' style={{ fontSize: 11.5, fontWeight: 500, color: '#374151', lineHeight: 1.3, hyphens: 'auto', wordBreak: 'break-word' }}>
         {node.name}
       </div>
       {hasChildren && (
