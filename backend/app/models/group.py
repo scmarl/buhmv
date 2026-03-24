@@ -7,8 +7,13 @@ class Group(Base):
     __tablename__ = "groups"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False)
+    name = Column(String(100), nullable=False)
     description = Column(String(500))
+    parent_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    sort_order = Column(Integer, default=0)
+
+    children = relationship("Group", back_populates="parent", cascade="all, delete-orphan")
+    parent = relationship("Group", back_populates="children", remote_side=[id])
     memberships = relationship("GroupMembership", back_populates="group", cascade="all, delete-orphan")
 
 

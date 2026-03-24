@@ -11,6 +11,7 @@ import DuplicatesPage from './pages/DuplicatesPage'
 import FieldsPage from './pages/FieldsPage'
 import DocumentsPage from './pages/DocumentsPage'
 import GroupsPage from './pages/GroupsPage'
+import GroupsEditPage from './pages/GroupsEditPage'
 import BirthdaysPage from './pages/BirthdaysPage'
 import PresencePage from './pages/PresencePage'
 import SavedViewsPage from './pages/SavedViewsPage'
@@ -48,7 +49,7 @@ export default function App() {
         <Route path="import" element={<ImportPage />} />
         <Route path="duplicates" element={<RequireAdmin><DuplicatesPage /></RequireAdmin>} />
         <Route path="fields" element={<RequireAdmin><FieldsPage /></RequireAdmin>} />
-        <Route path="groups-edit" element={<RequireAdmin><GroupsPage /></RequireAdmin>} />
+        <Route path="groups-edit" element={<RequireAdmin><GroupsEditPage /></RequireAdmin>} />
       </Route>
     </Routes>
   )
