@@ -114,7 +114,7 @@ function DefaultValueInput({
 
   if (fieldType === 'email') {
     return (
-      <input type="email" style={inputStyle} value={value}
+      <input type="text" style={inputStyle} value={value}
         onChange={e => onChange(e.target.value)}
         placeholder="z.B. info@verein.de" />
     )
