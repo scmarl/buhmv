@@ -9,6 +9,12 @@ import StatsPage from './pages/StatsPage'
 import ImportPage from './pages/ImportPage'
 import DuplicatesPage from './pages/DuplicatesPage'
 import FieldsPage from './pages/FieldsPage'
+import DocumentsPage from './pages/DocumentsPage'
+import GroupsPage from './pages/GroupsPage'
+import BirthdaysPage from './pages/BirthdaysPage'
+import PresencePage from './pages/PresencePage'
+import SavedViewsPage from './pages/SavedViewsPage'
+import OrganigrammPage from './pages/OrganigrammPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useMe()
@@ -32,10 +38,17 @@ export default function App() {
         <Route path="members" element={<MembersPage />} />
         <Route path="members/:id" element={<MemberDetailPage />} />
         <Route path="search" element={<SearchPage />} />
+        <Route path="saved-views" element={<SavedViewsPage />} />
         <Route path="stats" element={<StatsPage />} />
-        <Route path="import" element={<RequireAdmin><ImportPage /></RequireAdmin>} />
+        <Route path="documents" element={<DocumentsPage />} />
+        <Route path="groups" element={<GroupsPage />} />
+        <Route path="birthdays" element={<BirthdaysPage />} />
+        <Route path="presence" element={<PresencePage />} />
+        <Route path="organigramm" element={<OrganigrammPage />} />
+        <Route path="import" element={<ImportPage />} />
         <Route path="duplicates" element={<RequireAdmin><DuplicatesPage /></RequireAdmin>} />
         <Route path="fields" element={<RequireAdmin><FieldsPage /></RequireAdmin>} />
+        <Route path="groups-edit" element={<RequireAdmin><GroupsPage /></RequireAdmin>} />
       </Route>
     </Routes>
   )
