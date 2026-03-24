@@ -43,6 +43,55 @@ function formatCell(value: unknown, fieldType: string, fieldName: string): strin
   return String(value)
 }
 
+
+// ── Action Dropdown ───────────────────────────────────────────────────────────
+
+interface ActionItem { label: string; onClick: () => void; divider?: boolean }
+
+function ActionDropdown({ label, items, variant = 'default' }: {
+  label: string; items: ActionItem[]; variant?: 'default' | 'primary'
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+        border: variant === 'primary' ? 'none' : '1px solid #d1d5db', borderRadius: 6,
+        background: variant === 'primary' ? '#16a34a' : '#fff',
+        color: variant === 'primary' ? '#fff' : '#374151',
+        cursor: 'pointer', fontSize: 13, fontWeight: 600,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+      }}>
+        {label} <span style={{ fontSize: 9, opacity: 0.7 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 300,
+          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+          boxShadow: '0 6px 24px rgba(0,0,0,0.12)', minWidth: 210, padding: '4px 0',
+        }}>
+          {items.map((item, i) => (
+            item.divider
+              ? <div key={i} style={{ height: 1, background: '#f3f4f6', margin: '4px 0' }} />
+              : <button key={i} onClick={() => { item.onClick(); setOpen(false) }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#111827' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                  {item.label}
+                </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Felder Dropdown ───────────────────────────────────────────────────────────
 
 function FelderDropdown({
@@ -399,22 +448,52 @@ export default function MembersPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-            {groupName ?? 'Alle Mitglieder'}
-          </h1>
-          {groupName && (
-            <button onClick={() => navigate('/members')}
-              style={{ marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#6b7280', padding: 0 }}>
-              ← Alle anzeigen
-            </button>
-          )}
-        </div>
-        <button onClick={() => navigate('/members/new')}
-          style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-          + Neu
-        </button>
+      <div style={{ marginBottom: 14 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+          {groupName ?? 'Alle Mitglieder'}
+        </h1>
+        {groupName && (
+          <button onClick={() => navigate('/members')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#6b7280', padding: 0 }}>
+            ← Alle anzeigen
+          </button>
+        )}
+        {data && <p style={{ fontSize: 13, color: '#6b7280', margin: '2px 0 0' }}>{data.total} Mitglieder{selected.size > 0 ? ` · ${selected.size} ausgewählt` : ''}</p>}
+      </div>
+
+      {/* Action Toolbar */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <ActionDropdown variant="primary" label="Erfassen" items={[
+          { label: 'Neues Mitglied', onClick: () => navigate('/members/new') },
+          { label: 'Neue Untergruppe', onClick: () => navigate('/groups-edit') },
+          { divider: true, label: '', onClick: () => {} },
+          { label: 'Mitglieder importieren', onClick: () => navigate('/import') },
+        ]} />
+        <ActionDropdown label="Exportieren" items={[
+          { label: 'Als CSV exportieren', onClick: () => navigate('/export') },
+          { label: 'Als Excel exportieren', onClick: () => navigate('/export') },
+        ]} />
+        <ActionDropdown label="Drucken" items={[
+          { label: 'Liste drucken', onClick: () => window.print() },
+          { label: 'Etiketten drucken', onClick: () => alert('Kommt') },
+        ]} />
+        <ActionDropdown label="Versenden" items={[
+          { label: 'E-Mail senden', onClick: () => {
+            const addrs = items.filter((m: any) => selected.has(m.id) && m.email).map((m: any) => m.email)
+            if (addrs.length) window.location.href = 'mailto:?bcc=' + addrs.join(',')
+            else alert('Keine Mitglieder mit E-Mail ausgewählt')
+          }},
+          { label: 'E-Mail-Adressen kopieren', onClick: () => {
+            const addrs = items.filter((m: any) => selected.has(m.id) && m.email).map((m: any) => m.email).join('; ')
+            navigator.clipboard.writeText(addrs)
+          }},
+        ]} />
+        <ActionDropdown label="Extras" items={[
+          { label: 'Duplikate prüfen', onClick: () => navigate('/duplicates') },
+          { divider: true, label: '', onClick: () => {} },
+          { label: 'Datenfelder bearbeiten', onClick: () => navigate('/fields') },
+          { label: 'Gruppen bearbeiten', onClick: () => navigate('/groups-edit') },
+        ]} />
       </div>
 
       {/* Toolbar */}
@@ -451,11 +530,6 @@ export default function MembersPage() {
           </button>
         )}
 
-        {data && (
-          <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 'auto' }}>
-            {data.total} Einträge{selected.size > 0 ? ` · ${selected.size} ausgewählt` : ''}
-          </span>
-        )}
       </div>
 
       {/* Table */}
