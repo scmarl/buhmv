@@ -1,5 +1,5 @@
 from app.db.session import engine, Base
-from app.models import user, member, group, field, saved_view  # noqa
+from app.models import user, member, group, field, saved_view, list_view  # noqa
 from app.core.security import get_password_hash
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -42,6 +42,7 @@ def init_db():
             "ALTER TABLE custom_fields ADD COLUMN IF NOT EXISTS default_value TEXT"
         ))
         conn.execute(text("ALTER TABLE members ADD COLUMN IF NOT EXISTS death_date DATE"))
+        conn.execute(text("CREATE TABLE IF NOT EXISTS list_views (id SERIAL PRIMARY KEY, name VARCHAR(200) NOT NULL, columns TEXT NOT NULL, is_default BOOLEAN DEFAULT FALSE)"))
         # Add new enum values (must be outside a transaction in PG)
         conn.execute(text("COMMIT"))
         conn.execute(text("ALTER TYPE fieldtype ADD VALUE IF NOT EXISTS 'email'"))

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import auth, members, groups, fields, search, views, import_, export, stats, duplicates
+from app.api import auth, members, groups, fields, search, views, import_, export, stats, duplicates, list_views
 
 app = FastAPI(title=settings.APP_NAME, version="0.1.0")
 
@@ -23,6 +23,7 @@ app.include_router(import_.router)
 app.include_router(export.router)
 app.include_router(stats.router)
 app.include_router(duplicates.router)
+app.include_router(list_views.router)
 
 
 @app.get("/health")
