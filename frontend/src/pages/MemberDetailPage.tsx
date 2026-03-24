@@ -142,7 +142,7 @@ export default function MemberDetailPage() {
 
             {activeTab === 'kontakt' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                <Field label="E-Mail" style={{ gridColumn: '1 / -1' }}><input type="email" {...register('email')} style={inputStyle} /></Field>
+                <Field label="E-Mail" style={{ gridColumn: '1 / -1' }}><input type="text" {...register('email')} style={inputStyle} /></Field>
                 <Field label="Telefon"><input {...register('phone')} style={inputStyle} /></Field>
                 <Field label="Mobil"><input {...register('mobile')} style={inputStyle} /></Field>
                 <Field label="Straße" style={{ gridColumn: '1 / -1' }}><input {...register('street')} style={inputStyle} /></Field>
