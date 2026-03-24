@@ -85,6 +85,8 @@ def list_members(
     size: int = Query(25, ge=1, le=100),
     search: Optional[str] = None,
     active_only: bool = True,
+    sort_by: Optional[str] = "last_name",
+    sort_dir: str = "asc",
     group_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -101,7 +103,10 @@ def list_members(
     if group_id is not None:
         q = q.join(Member.group_memberships).filter(GroupMembership.group_id == group_id)
     total = q.count()
-    rows = q.order_by(Member.last_name).offset((page - 1) * size).limit(size).all()
+    SORTABLE = {c.name for c in Member.__table__.columns} - {"photo_url"}
+    sort_col = getattr(Member, sort_by, Member.last_name) if sort_by in SORTABLE else Member.last_name
+    order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
+    rows = q.order_by(order).offset((page - 1) * size).limit(size).all()
     items = [{**{c.name: getattr(m, c.name) for c in m.__table__.columns}, 'age': m.age} for m in rows]
     return {"items": items, "total": total, "page": page, "size": size}
 
