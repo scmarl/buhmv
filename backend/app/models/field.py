@@ -10,6 +10,7 @@ class FieldType(str, enum.Enum):
     number = "number"
     money = "money"
     date = "date"
+    email = "email"
     select = "select"
     checkbox = "checkbox"
     file = "file"
@@ -25,6 +26,7 @@ class CustomField(Base):
     field_type = Column(Enum(FieldType), nullable=False)
     category = Column(String(100), default="Allgemein")
     options = Column(Text)
+    default_value = Column(Text)
     is_required = Column(Boolean, default=False)
     sort_order = Column(Integer, default=0)
     is_system = Column(Boolean, default=False)

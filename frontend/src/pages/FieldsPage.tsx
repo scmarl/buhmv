@@ -2,10 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 type FieldType =
-  | 'text' | 'textarea' | 'number' | 'money' | 'date'
+  | 'text' | 'textarea' | 'number' | 'money' | 'date' | 'email'
   | 'select' | 'checkbox' | 'file' | 'image'
 
 interface Field {
@@ -15,6 +13,7 @@ interface Field {
   field_type: FieldType
   category: string | null
   options: string | null
+  default_value: string | null
   is_required: boolean
   sort_order: number
   is_system: boolean
@@ -25,11 +24,10 @@ interface FieldForm {
   field_type: FieldType
   category: string
   options: string[]
+  default_value: string
   is_required: boolean
   sort_order: number
 }
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<FieldType, string> = {
   text: 'Text (einzeilig)',
@@ -37,6 +35,7 @@ const TYPE_LABELS: Record<FieldType, string> = {
   number: 'Zahl',
   money: 'Betrag (€)',
   date: 'Datum',
+  email: 'E-Mail-Adresse',
   select: 'Auswahl',
   checkbox: 'Checkbox (Ja/Nein)',
   file: 'Datei-Upload',
@@ -49,6 +48,7 @@ const TYPE_ICONS: Record<FieldType, string> = {
   number: '#',
   money: '€',
   date: '📅',
+  email: '@',
   select: '▾',
   checkbox: '☑',
   file: '📎',
@@ -60,7 +60,83 @@ function parseOptions(raw: string | null): string[] {
   try { return JSON.parse(raw) } catch { return [] }
 }
 
-// ── Context Menu ─────────────────────────────────────────────────────────────
+// ── Default Value Input ───────────────────────────────────────────────────────
+
+function DefaultValueInput({
+  fieldType,
+  options,
+  value,
+  onChange,
+}: {
+  fieldType: FieldType
+  options: string[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '7px 10px', border: '1px solid #d1d5db',
+    borderRadius: 6, fontSize: 14, boxSizing: 'border-box',
+  }
+
+  if (fieldType === 'checkbox') {
+    return (
+      <select style={inputStyle} value={value} onChange={e => onChange(e.target.value)}>
+        <option value="">— kein Standard —</option>
+        <option value="true">Ja</option>
+        <option value="false">Nein</option>
+      </select>
+    )
+  }
+
+  if (fieldType === 'select') {
+    return (
+      <select style={inputStyle} value={value} onChange={e => onChange(e.target.value)}>
+        <option value="">— kein Standard —</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    )
+  }
+
+  if (fieldType === 'number' || fieldType === 'money') {
+    return (
+      <input type="number" style={inputStyle} value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder="z.B. 0" />
+    )
+  }
+
+  if (fieldType === 'date') {
+    return (
+      <input type="date" style={inputStyle} value={value}
+        onChange={e => onChange(e.target.value)} />
+    )
+  }
+
+  if (fieldType === 'email') {
+    return (
+      <input type="email" style={inputStyle} value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder="z.B. info@verein.de" />
+    )
+  }
+
+  if (fieldType === 'file' || fieldType === 'image') {
+    return (
+      <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>
+        Kein Standardwert für Datei-/Bild-Felder.
+      </p>
+    )
+  }
+
+  // text / textarea
+  return (
+    <input type="text" style={inputStyle} value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder="Standardtext eingeben" />
+  )
+}
+
+// ── Context Menu ──────────────────────────────────────────────────────────────
 
 function ContextMenu({
   items,
@@ -129,7 +205,12 @@ function FieldModal({
   const [catMode, setCatMode] = useState<'select' | 'new'>('select')
 
   function set(k: string, v: unknown) {
-    setForm(f => ({ ...f, [k]: v }))
+    setForm(f => {
+      const next = { ...f, [k]: v }
+      // Reset default_value when type changes (incompatible)
+      if (k === 'field_type') next.default_value = ''
+      return next
+    })
   }
 
   function addOption() {
@@ -150,16 +231,14 @@ function FieldModal({
     onSave({ ...form, category: finalCat })
   }
 
-  const inputStyle: React.CSSProperties = {
+  const inp: React.CSSProperties = {
     width: '100%', padding: '7px 10px', border: '1px solid #d1d5db',
     borderRadius: 6, fontSize: 14, boxSizing: 'border-box',
   }
-  const labelStyle: React.CSSProperties = {
+  const lbl: React.CSSProperties = {
     display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4,
   }
-  const disabledStyle: React.CSSProperties = {
-    ...inputStyle, background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed',
-  }
+  const noDefault = form.field_type === 'file' || form.field_type === 'image'
 
   return (
     <div style={{
@@ -167,8 +246,8 @@ function FieldModal({
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
     }}>
       <div style={{
-        background: '#fff', borderRadius: 12, padding: 28, width: 480,
-        maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+        background: '#fff', borderRadius: 12, padding: 28, width: 500,
+        maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: 0 }}>{title}</h2>
@@ -182,33 +261,31 @@ function FieldModal({
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* Name – new only */}
           {isNew && (
             <div>
-              <label style={labelStyle}>Interner Name <span style={{ color: '#dc2626' }}>*</span></label>
-              <input style={inputStyle} value={form.name ?? ''} onChange={e => set('name', e.target.value)}
+              <label style={lbl}>Interner Name <span style={{ color: '#dc2626' }}>*</span></label>
+              <input style={inp} value={form.name ?? ''} onChange={e => set('name', e.target.value)}
                 placeholder="z.B. vereins_nr" required />
               <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Technischer Bezeichner (eindeutig, keine Leerzeichen)</p>
             </div>
           )}
 
-          {/* Label */}
           <div>
-            <label style={labelStyle}>Bezeichnung <span style={{ color: '#dc2626' }}>*</span></label>
-            <input style={inputStyle} value={form.label} onChange={e => set('label', e.target.value)}
+            <label style={lbl}>Bezeichnung <span style={{ color: '#dc2626' }}>*</span></label>
+            <input style={inp} value={form.label} onChange={e => set('label', e.target.value)}
               placeholder="z.B. Vereinsnummer" required />
           </div>
 
-          {/* Type – disabled for system fields */}
           <div>
-            <label style={labelStyle}>Feldtyp</label>
+            <label style={lbl}>Feldtyp</label>
             {isSystem ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input style={disabledStyle} value={TYPE_LABELS[form.field_type] ?? form.field_type} readOnly />
+                <input style={{ ...inp, background: '#f9fafb', color: '#6b7280' }}
+                  value={TYPE_LABELS[form.field_type] ?? form.field_type} readOnly />
                 <span style={{ fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap' }}>🔒 nicht änderbar</span>
               </div>
             ) : (
-              <select style={inputStyle} value={form.field_type}
+              <select style={inp} value={form.field_type}
                 onChange={e => set('field_type', e.target.value as FieldType)}>
                 {(Object.keys(TYPE_LABELS) as FieldType[]).map(t => (
                   <option key={t} value={t}>{TYPE_ICONS[t]} {TYPE_LABELS[t]}</option>
@@ -220,7 +297,7 @@ function FieldModal({
           {/* Select options */}
           {form.field_type === 'select' && (
             <div>
-              <label style={labelStyle}>Auswahloptionen</label>
+              <label style={lbl}>Auswahloptionen</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                 {form.options.map(o => (
                   <span key={o} style={{
@@ -234,25 +311,40 @@ function FieldModal({
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <input style={{ ...inputStyle, flex: 1 }} value={newOption}
+                <input style={{ ...inp, flex: 1 }} value={newOption}
                   onChange={e => setNewOption(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addOption())}
                   placeholder="Option eingeben + Enter" />
                 <button type="button" onClick={addOption}
-                  style={{
-                    padding: '7px 14px', background: '#f3f4f6', border: '1px solid #d1d5db',
-                    borderRadius: 6, cursor: 'pointer', fontSize: 13,
-                  }}>+ Hinzu</button>
+                  style={{ padding: '7px 14px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+                  + Hinzu
+                </button>
               </div>
+            </div>
+          )}
+
+          {/* Default value */}
+          {!noDefault && (
+            <div>
+              <label style={lbl}>Standardwert</label>
+              <DefaultValueInput
+                fieldType={form.field_type}
+                options={form.options}
+                value={form.default_value}
+                onChange={v => set('default_value', v)}
+              />
+              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                Wird beim Anlegen eines neuen Mitglieds automatisch vorausgefüllt.
+              </p>
             </div>
           )}
 
           {/* Category */}
           <div>
-            <label style={labelStyle}>Kategorie</label>
+            <label style={lbl}>Kategorie</label>
             <div style={{ display: 'flex', gap: 8, marginBottom: catMode === 'new' ? 8 : 0 }}>
-              {['select', 'new'].map(m => (
-                <button key={m} type="button" onClick={() => setCatMode(m as 'select' | 'new')}
+              {(['select', 'new'] as const).map(m => (
+                <button key={m} type="button" onClick={() => setCatMode(m)}
                   style={{
                     padding: '4px 12px', borderRadius: 6, fontSize: 13, cursor: 'pointer',
                     background: catMode === m ? '#2a5298' : '#f3f4f6',
@@ -264,24 +356,22 @@ function FieldModal({
               ))}
             </div>
             {catMode === 'select' ? (
-              <select style={inputStyle} value={form.category} onChange={e => set('category', e.target.value)}>
+              <select style={inp} value={form.category} onChange={e => set('category', e.target.value)}>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 {!categories.includes('Allgemein') && <option value="Allgemein">Allgemein</option>}
               </select>
             ) : (
-              <input style={inputStyle} value={newCat} onChange={e => setNewCat(e.target.value)}
+              <input style={inp} value={newCat} onChange={e => setNewCat(e.target.value)}
                 placeholder="Neue Kategorie eingeben" />
             )}
           </div>
 
-          {/* Required */}
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
             <input type="checkbox" checked={form.is_required} onChange={e => set('is_required', e.target.checked)}
               style={{ width: 16, height: 16 }} />
             <span style={{ fontSize: 14, color: '#374151' }}>Pflichtfeld</span>
           </label>
 
-          {/* Actions */}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
             <button type="button" onClick={onClose}
               style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 14 }}>
@@ -300,7 +390,7 @@ function FieldModal({
 
 // ── Category Modal ────────────────────────────────────────────────────────────
 
-function CategoryModal({ onSave, onClose }: { onSave: (name: string) => void; onClose: () => void }) {
+function CategoryModal({ onSave, onClose }: { onSave: (n: string) => void; onClose: () => void }) {
   const [name, setName] = useState('')
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
@@ -365,12 +455,10 @@ export default function FieldsPage() {
     mutationFn: (body: object) => api.post('/fields', body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['fields'] }); setShowCreate(false); setPendingCategory(null) },
   })
-
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: object }) => api.put(`/fields/${id}`, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['fields'] }); setEditField(null) },
   })
-
   const deleteMut = useMutation({
     mutationFn: (id: number) => api.delete(`/fields/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['fields'] }); setDeleteField(null) },
@@ -383,12 +471,9 @@ export default function FieldsPage() {
     if (!grouped[cat]) grouped[cat] = []
     grouped[cat].push(f)
   }
-  if (pendingCategory && !grouped[pendingCategory]) {
-    grouped[pendingCategory] = []
-  }
+  if (pendingCategory && !grouped[pendingCategory]) grouped[pendingCategory] = []
 
   const allCategories = [...new Set([...Object.keys(grouped), 'Allgemein'])].sort()
-
   const categoryOrder = ['Stammdaten', 'Kontakt', 'Mitgliedschaft', 'Sonstiges']
   const sortedCategories = [
     ...categoryOrder.filter(c => grouped[c]),
@@ -402,6 +487,7 @@ export default function FieldsPage() {
       field_type: form.field_type,
       category: form.category,
       options: form.options.length ? form.options : null,
+      default_value: form.default_value || null,
       is_required: form.is_required,
       sort_order: form.sort_order,
     }
@@ -415,7 +501,13 @@ export default function FieldsPage() {
   const emptyForm: FieldForm = {
     label: '', field_type: 'text',
     category: pendingCategory ?? 'Allgemein',
-    options: [], is_required: false, sort_order: 0,
+    options: [], default_value: '', is_required: false, sort_order: 0,
+  }
+
+  function defaultValueDisplay(field: Field): string | null {
+    if (!field.default_value) return null
+    if (field.field_type === 'checkbox') return field.default_value === 'true' ? 'Standard: Ja' : 'Standard: Nein'
+    return `Standard: ${field.default_value}`
   }
 
   return (
@@ -440,17 +532,14 @@ export default function FieldsPage() {
         </div>
       </div>
 
-      {/* Legend */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 12, color: '#6b7280' }}>
         <span>🔒 = Systemfeld (Typ nicht änderbar, nicht löschbar)</span>
       </div>
 
       {isLoading && <p style={{ color: '#6b7280' }}>Lade Felder…</p>}
 
-      {/* Field groups */}
       {!isLoading && sortedCategories.map(cat => (
         <div key={cat} style={{ marginBottom: 28 }}>
-          {/* Category header */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '8px 0', borderBottom: '2px solid #e5e7eb', marginBottom: 6,
@@ -471,67 +560,67 @@ export default function FieldsPage() {
             <p style={{ fontSize: 13, color: '#9ca3af', padding: '8px 0' }}>Keine Felder in dieser Kategorie.</p>
           )}
 
-          {(grouped[cat] ?? []).map(field => (
-            <div key={field.id} style={{
-              display: 'flex', alignItems: 'center', padding: '10px 12px',
-              background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 5, gap: 12,
-            }}>
-              {/* Drag handle */}
-              <span style={{ color: '#d1d5db', fontSize: 16, cursor: 'grab', userSelect: 'none' }}>⠿</span>
+          {(grouped[cat] ?? []).map(field => {
+            const defVal = defaultValueDisplay(field)
+            return (
+              <div key={field.id} style={{
+                display: 'flex', alignItems: 'center', padding: '10px 12px',
+                background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 5, gap: 12,
+              }}>
+                <span style={{ color: '#d1d5db', fontSize: 16, cursor: 'grab', userSelect: 'none' }}>⠿</span>
 
-              {/* System badge or type icon */}
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <span style={{
-                  width: 32, height: 32, background: field.is_system ? '#eff6ff' : '#f3f4f6',
-                  borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14, border: field.is_system ? '1px solid #bfdbfe' : '1px solid #e5e7eb',
-                }}>
-                  {TYPE_ICONS[field.field_type as FieldType] ?? '?'}
-                </span>
-                {field.is_system && (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
                   <span style={{
-                    position: 'absolute', top: -4, right: -4, fontSize: 10, lineHeight: 1,
-                  }}>🔒</span>
-                )}
-              </div>
-
-              {/* Name + type */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, color: '#2a5298', fontSize: 14 }}>
-                  {field.label}
-                  {field.is_required && <span style={{ color: '#dc2626', marginLeft: 4, fontSize: 12 }}>*</span>}
+                    width: 32, height: 32, background: field.is_system ? '#eff6ff' : '#f3f4f6',
+                    borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, border: field.is_system ? '1px solid #bfdbfe' : '1px solid #e5e7eb',
+                  }}>
+                    {TYPE_ICONS[field.field_type as FieldType] ?? '?'}
+                  </span>
+                  {field.is_system && (
+                    <span style={{ position: 'absolute', top: -4, right: -4, fontSize: 10 }}>🔒</span>
+                  )}
                 </div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 1 }}>
-                  {TYPE_LABELS[field.field_type as FieldType] ?? field.field_type}
-                  {field.field_type === 'select' && parseOptions(field.options).length > 0 && (
-                    <span style={{ marginLeft: 6, color: '#9ca3af' }}>
-                      ({parseOptions(field.options).join(', ')})
-                    </span>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: '#2a5298', fontSize: 14 }}>
+                    {field.label}
+                    {field.is_required && <span style={{ color: '#dc2626', marginLeft: 4, fontSize: 12 }}>*</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 1, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span>{TYPE_LABELS[field.field_type as FieldType] ?? field.field_type}</span>
+                    {field.field_type === 'select' && parseOptions(field.options).length > 0 && (
+                      <span style={{ color: '#9ca3af' }}>({parseOptions(field.options).join(', ')})</span>
+                    )}
+                    {defVal && (
+                      <span style={{
+                        background: '#f0fdf4', color: '#15803d', borderRadius: 4,
+                        padding: '0 6px', fontSize: 11, border: '1px solid #bbf7d0',
+                      }}>{defVal}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setMenuFieldId(menuFieldId === field.id ? null : field.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#6b7280', padding: '0 6px', lineHeight: 1, borderRadius: 4 }}
+                    title="Optionen">···</button>
+                  {menuFieldId === field.id && (
+                    <ContextMenu
+                      items={[
+                        { label: 'Feld bearbeiten', onClick: () => setEditField(field) },
+                        ...(!field.is_system ? [{ label: 'Feld löschen', onClick: () => setDeleteField(field), danger: true }] : []),
+                      ]}
+                      onClose={() => setMenuFieldId(null)}
+                    />
                   )}
                 </div>
               </div>
-
-              {/* Context menu */}
-              <div style={{ position: 'relative' }}>
-                <button onClick={() => setMenuFieldId(menuFieldId === field.id ? null : field.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#6b7280', padding: '0 6px', lineHeight: 1, borderRadius: 4 }}
-                  title="Optionen">···</button>
-                {menuFieldId === field.id && (
-                  <ContextMenu
-                    items={[
-                      { label: 'Feld bearbeiten', onClick: () => setEditField(field) },
-                      ...(!field.is_system ? [{ label: 'Feld löschen', onClick: () => setDeleteField(field), danger: true }] : []),
-                    ]}
-                    onClose={() => setMenuFieldId(null)}
-                  />
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       ))}
 
-      {/* Empty state */}
       {!isLoading && fields.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
@@ -539,7 +628,6 @@ export default function FieldsPage() {
         </div>
       )}
 
-      {/* Modals */}
       {showCreate && (
         <FieldModal title="Neues Datenfeld" isSystem={false}
           initial={{ ...emptyForm, category: pendingCategory ?? 'Allgemein' }}
@@ -548,13 +636,15 @@ export default function FieldsPage() {
           onClose={() => { setShowCreate(false); setPendingCategory(null) }} />
       )}
       {editField && (
-        <FieldModal title={editField.is_system ? 'Systemfeld bearbeiten' : 'Datenfeld bearbeiten'}
+        <FieldModal
+          title={editField.is_system ? 'Systemfeld bearbeiten' : 'Datenfeld bearbeiten'}
           isSystem={editField.is_system}
           initial={{
             label: editField.label,
             field_type: editField.field_type,
             category: editField.category ?? 'Allgemein',
             options: parseOptions(editField.options),
+            default_value: editField.default_value ?? '',
             is_required: editField.is_required,
             sort_order: editField.sort_order,
           }}

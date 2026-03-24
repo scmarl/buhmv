@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.deps import get_current_user, require_admin
-from app.models.field import CustomField, FieldPermission, FieldType
+from app.models.field import CustomField, FieldType
 from pydantic import BaseModel
 from typing import Optional
 import json
@@ -16,6 +16,7 @@ class FieldCreate(BaseModel):
     field_type: FieldType
     category: str = "Allgemein"
     options: Optional[list[str]] = None
+    default_value: Optional[str] = None
     is_required: bool = False
     sort_order: int = 0
 
@@ -25,6 +26,7 @@ class FieldUpdate(BaseModel):
     field_type: Optional[FieldType] = None
     category: str = "Allgemein"
     options: Optional[list[str]] = None
+    default_value: Optional[str] = None
     is_required: bool = False
     sort_order: int = 0
 
@@ -36,6 +38,7 @@ class FieldOut(BaseModel):
     field_type: str
     category: Optional[str]
     options: Optional[str]
+    default_value: Optional[str]
     is_required: bool
     sort_order: int
     is_system: bool = False
@@ -55,6 +58,7 @@ def create_field(data: FieldCreate, db: Session = Depends(get_db), current_user=
         name=data.name, label=data.label, field_type=data.field_type,
         category=data.category,
         options=json.dumps(data.options) if data.options else None,
+        default_value=data.default_value,
         is_required=data.is_required, sort_order=data.sort_order,
         is_system=False,
     )
@@ -72,9 +76,9 @@ def update_field(field_id: int, data: FieldUpdate, db: Session = Depends(get_db)
     f.label = data.label
     f.category = data.category
     f.options = json.dumps(data.options) if data.options else None
+    f.default_value = data.default_value
     f.is_required = data.is_required
     f.sort_order = data.sort_order
-    # Only change field_type for non-system fields
     if not f.is_system and data.field_type is not None:
         f.field_type = data.field_type
     db.commit()

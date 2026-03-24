@@ -17,7 +17,7 @@ SYSTEM_FIELDS = [
      json.dumps(["männlich", "weiblich", "divers"]),         False, 3, True),
     ("birthdate",     "Geburtsdatum",   "date",     "Stammdaten",     None, False, 4, True),
     ("photo_url",     "Foto",           "image",    "Stammdaten",     None, False, 99, True),
-    ("email",         "E-Mail",         "text",     "Kontakt",        None, False, 5, False),
+    ("email",         "E-Mail",         "email",    "Kontakt",        None, False, 5, False),
     ("phone",         "Telefon",        "text",     "Kontakt",        None, False, 6, False),
     ("mobile",        "Mobil",          "text",     "Kontakt",        None, False, 7, False),
     ("street",        "Straße",         "text",     "Kontakt",        None, False, 8, False),
@@ -36,6 +36,9 @@ def init_db():
     with engine.connect() as conn:
         conn.execute(text(
             "ALTER TABLE custom_fields ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT FALSE"
+        ))
+        conn.execute(text(
+            "ALTER TABLE custom_fields ADD COLUMN IF NOT EXISTS default_value TEXT"
         ))
         conn.commit()
 
