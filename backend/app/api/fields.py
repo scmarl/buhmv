@@ -14,15 +14,19 @@ class FieldCreate(BaseModel):
     name: str
     label: str
     field_type: FieldType
+    category: str = "Allgemein"
     options: Optional[list[str]] = None
     is_required: bool = False
     sort_order: int = 0
 
 
-class PermissionUpdate(BaseModel):
-    role: str
-    can_view: bool
-    can_edit: bool
+class FieldUpdate(BaseModel):
+    label: str
+    field_type: Optional[FieldType] = None
+    category: str = "Allgemein"
+    options: Optional[list[str]] = None
+    is_required: bool = False
+    sort_order: int = 0
 
 
 class FieldOut(BaseModel):
@@ -30,48 +34,66 @@ class FieldOut(BaseModel):
     name: str
     label: str
     field_type: str
+    category: Optional[str]
     options: Optional[str]
     is_required: bool
     sort_order: int
-
-    class Config:
-        from_attributes = True
+    is_system: bool = False
+    class Config: from_attributes = True
 
 
 @router.get("", response_model=list[FieldOut])
 def list_fields(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    return db.query(CustomField).order_by(CustomField.sort_order).all()
+    return db.query(CustomField).order_by(CustomField.category, CustomField.sort_order, CustomField.label).all()
 
 
 @router.post("", response_model=FieldOut, status_code=201)
 def create_field(data: FieldCreate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
-    field = CustomField(
-        name=data.name,
-        label=data.label,
-        field_type=data.field_type,
+    if db.query(CustomField).filter(CustomField.name == data.name).first():
+        raise HTTPException(status_code=400, detail="Field name already exists")
+    f = CustomField(
+        name=data.name, label=data.label, field_type=data.field_type,
+        category=data.category,
         options=json.dumps(data.options) if data.options else None,
-        is_required=data.is_required,
-        sort_order=data.sort_order,
+        is_required=data.is_required, sort_order=data.sort_order,
+        is_system=False,
     )
-    db.add(field)
+    db.add(f)
     db.commit()
-    db.refresh(field)
-    return field
+    db.refresh(f)
+    return f
+
+
+@router.put("/{field_id}", response_model=FieldOut)
+def update_field(field_id: int, data: FieldUpdate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    f = db.query(CustomField).filter(CustomField.id == field_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="Field not found")
+    f.label = data.label
+    f.category = data.category
+    f.options = json.dumps(data.options) if data.options else None
+    f.is_required = data.is_required
+    f.sort_order = data.sort_order
+    # Only change field_type for non-system fields
+    if not f.is_system and data.field_type is not None:
+        f.field_type = data.field_type
+    db.commit()
+    db.refresh(f)
+    return f
 
 
 @router.delete("/{field_id}", status_code=204)
 def delete_field(field_id: int, db: Session = Depends(get_db), current_user=Depends(require_admin)):
-    field = db.query(CustomField).filter(CustomField.id == field_id).first()
-    if not field:
+    f = db.query(CustomField).filter(CustomField.id == field_id).first()
+    if not f:
         raise HTTPException(status_code=404, detail="Field not found")
-    db.delete(field)
+    if f.is_system:
+        raise HTTPException(status_code=403, detail="System fields cannot be deleted")
+    db.delete(f)
     db.commit()
 
 
-@router.put("/{field_id}/permissions")
-def update_permissions(field_id: int, perms: list[PermissionUpdate], db: Session = Depends(get_db), current_user=Depends(require_admin)):
-    db.query(FieldPermission).filter(FieldPermission.field_id == field_id).delete()
-    for p in perms:
-        db.add(FieldPermission(field_id=field_id, role=p.role, can_view=p.can_view, can_edit=p.can_edit))
-    db.commit()
-    return {"updated": len(perms)}
+@router.get("/categories")
+def list_categories(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    rows = db.query(CustomField.category).distinct().all()
+    return sorted(set(r[0] or "Allgemein" for r in rows))

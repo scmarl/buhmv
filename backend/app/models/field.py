@@ -23,9 +23,11 @@ class CustomField(Base):
     name = Column(String(100), unique=True, nullable=False)
     label = Column(String(200), nullable=False)
     field_type = Column(Enum(FieldType), nullable=False)
-    options = Column(Text)  # JSON for select options
+    category = Column(String(100), default="Allgemein")
+    options = Column(Text)
     is_required = Column(Boolean, default=False)
     sort_order = Column(Integer, default=0)
+    is_system = Column(Boolean, default=False)
     permissions = relationship("FieldPermission", back_populates="field", cascade="all, delete-orphan")
     values = relationship("CustomFieldValue", back_populates="field", cascade="all, delete-orphan")
 
