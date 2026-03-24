@@ -80,8 +80,58 @@ def update_group(group_id: int, data: GroupBase, db: Session = Depends(get_db), 
 
 @router.delete("/{group_id}", status_code=204)
 def delete_group(group_id: int, db: Session = Depends(get_db), current_user=Depends(require_office_or_above)):
+    from app.models.member import Member
+
+    def collect_ids(gid):
+        ids = {gid}
+        for child in db.query(Group).filter(Group.parent_id == gid).all():
+            ids |= collect_ids(child.id)
+        return ids
+
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
-    db.delete(group)
+
+    group_ids = collect_ids(group_id)
+    affected = set(
+        m.member_id for m in db.query(GroupMembership).filter(GroupMembership.group_id.in_(group_ids)).all()
+    )
+    for mid in affected:
+        other = db.query(GroupMembership).filter(
+            GroupMembership.member_id == mid, GroupMembership.group_id.notin_(group_ids)
+        ).count()
+        if other == 0:
+            db.query(Member).filter(Member.id == mid).delete(synchronize_session=False)
+    db.query(GroupMembership).filter(GroupMembership.group_id.in_(group_ids)).delete(synchronize_session=False)
+    for gid in sorted(group_ids, reverse=True):
+        db.query(Group).filter(Group.id == gid).delete(synchronize_session=False)
     db.commit()
+
+
+@router.get("/{group_id}/delete-preview")
+def delete_preview(group_id: int, db: Session = Depends(get_db), current_user=Depends(require_office_or_above)):
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    def collect_ids(gid):
+        ids = {gid}
+        for child in db.query(Group).filter(Group.parent_id == gid).all():
+            ids |= collect_ids(child.id)
+        return ids
+
+    group_ids = collect_ids(group_id)
+    affected = set(
+        m.member_id for m in db.query(GroupMembership).filter(GroupMembership.group_id.in_(group_ids)).all()
+    )
+    will_delete = sum(
+        1 for mid in affected
+        if db.query(GroupMembership).filter(
+            GroupMembership.member_id == mid, GroupMembership.group_id.notin_(group_ids)
+        ).count() == 0
+    )
+    return {
+        "members_to_delete": will_delete,
+        "members_to_remove": len(affected) - will_delete,
+        "subgroup_count": len(group_ids) - 1,
+    }

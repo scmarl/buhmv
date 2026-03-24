@@ -52,12 +52,18 @@ export default function GroupsEditPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['groups-tree'] }); closeDialog() },
   })
 
-  function closeDialog() { setDialog(null); setMoveTarget(null); setInputVal('') }
+  const [deletePreview, setDeletePreview] = useState<{members_to_delete:number,members_to_remove:number,subgroup_count:number}|null>(null)
+
+  function closeDialog() { setDialog(null); setMoveTarget(null); setInputVal(''); setDeletePreview(null) }
 
   function openDialog(d: Dialog) {
     setInputVal(d.group_name ?? '')
     setMoveTarget(null)
+    setDeletePreview(null)
     setDialog(d)
+    if (d.mode === 'delete' && d.group_id != null) {
+      api.get(`/groups/${d.group_id}/delete-preview`).then(r => setDeletePreview(r.data))
+    }
     if (d.mode !== 'move' && d.mode !== 'delete')
       setTimeout(() => inputRef.current?.focus(), 50)
   }
@@ -139,18 +145,30 @@ export default function GroupsEditPage() {
 
             {dialog.mode === 'delete' && (
               <>
-                <p style={{ fontSize: 14, color: '#374151', marginBottom: 8 }}>
-                  Soll die Gruppe <strong>„{dialog.group_name}"</strong> wirklich gelöscht werden?
+                <p style={{ fontSize: 14, color: '#374151', marginBottom: 16 }}>
+                  Willst du die Gruppe <strong>{dialog.group_name}</strong> wirklich löschen?
                 </p>
-                <p style={{ fontSize: 12, color: '#9ca3af', marginBottom: 24 }}>Untergruppen werden ebenfalls gelöscht.</p>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <button onClick={closeDialog}
-                    style={{ padding: '7px 18px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 14 }}>
-                    Abbrechen
-                  </button>
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '12px 16px', marginBottom: 24 }}>
+                  <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.7 }}>
+                    <span style={{ color: '#b91c1c', fontWeight: 700 }}>Achtung: </span>
+                    {deletePreview
+                      ? [
+                          deletePreview.members_to_delete > 0 && `${deletePreview.members_to_delete} Mitglied(er), die nur in dieser Gruppe sind, werden gelöscht.`,
+                          deletePreview.members_to_remove > 0 && `Mitglieder, die noch in anderen Gruppen sind, werden aus dieser Gruppe entfernt und bleiben in den anderen Gruppen erhalten.`,
+                          deletePreview.subgroup_count > 0 && `Auch alle ${deletePreview.subgroup_count} Untergruppe(n) dieser Gruppe werden gelöscht.`,
+                          deletePreview.members_to_delete === 0 && deletePreview.members_to_remove === 0 && deletePreview.subgroup_count === 0 && 'Die Gruppe ist leer und wird gelöscht.',
+                        ].filter(Boolean).join(' ')
+                      : 'Alle Mitglieder, die nur in dieser Gruppe sind, werden gelöscht. Mitglieder, die noch in anderen Gruppen sind, werden aus dieser Gruppe entfernt und bleiben in den anderen Gruppen erhalten. Auch alle Präsenzlisten dieser Gruppe werden gelöscht.'}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={submitDialog} disabled={isPending}
-                    style={{ padding: '7px 18px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
-                    {isPending ? 'Löschen…' : 'Löschen'}
+                    style={{ padding: '9px 20px', background: '#9b2020', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                    {isPending ? 'Löschen…' : 'Gruppe löschen'}
+                  </button>
+                  <button onClick={closeDialog}
+                    style={{ padding: '9px 20px', background: '#e5e7eb', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>
+                    Schliessen
                   </button>
                 </div>
               </>
