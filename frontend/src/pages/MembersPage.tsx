@@ -132,7 +132,7 @@ export default function MembersPage() {
                 <th style={{ padding: '10px 14px', width: 36 }}>
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} />
                 </th>
-                {['Nr.', 'Name', 'E-Mail', 'Ort', 'Eingetreten'].map(h => (
+                {['Nr.', 'Name', 'E-Mail', 'Alter', 'Ort', 'Eingetreten'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                 ))}
               </tr>
@@ -152,6 +152,7 @@ export default function MembersPage() {
                     {m.last_name}, {m.first_name}
                   </td>
                   <td style={{ padding: '9px 14px', fontSize: 13, color: '#374151' }}>{m.email || '—'}</td>
+                  <td style={{ padding: '9px 14px', fontSize: 13, color: '#374151' }}>{m.age != null ? m.age + ' J.' : '—'}</td>
                   <td style={{ padding: '9px 14px', fontSize: 13, color: '#374151' }}>{m.city || '—'}</td>
                   <td style={{ padding: '9px 14px', fontSize: 13, color: '#374151' }}>
                     {m.entry_date ? new Date(m.entry_date).toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '—'}

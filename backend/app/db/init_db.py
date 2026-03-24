@@ -26,6 +26,7 @@ SYSTEM_FIELDS = [
     ("member_number", "Mitgliedsnummer","text",     "Mitgliedschaft", None, False, 0, False),
     ("entry_date",    "Eintrittsdatum", "date",     "Mitgliedschaft", None, False, 1, False),
     ("exit_date",     "Austrittsdatum", "date",     "Mitgliedschaft", None, False, 2, False),
+    ("death_date",    "Verstorben am",   "date",     "Mitgliedschaft", None, False, 3, False),
     ("notes_field",   "Notizen",        "textarea", "Sonstiges",      None, False, 0, False),
 ]
 
@@ -40,6 +41,7 @@ def init_db():
         conn.execute(text(
             "ALTER TABLE custom_fields ADD COLUMN IF NOT EXISTS default_value TEXT"
         ))
+        conn.execute(text("ALTER TABLE members ADD COLUMN IF NOT EXISTS death_date DATE"))
         # Add new enum values (must be outside a transaction in PG)
         conn.execute(text("COMMIT"))
         conn.execute(text("ALTER TYPE fieldtype ADD VALUE IF NOT EXISTS 'email'"))

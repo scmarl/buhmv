@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Date, Boolean, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.session import Base
+from datetime import date as date_cls
 
 
 class Member(Base):
@@ -19,6 +20,7 @@ class Member(Base):
     gender = Column(String(20))
     entry_date = Column(Date)
     exit_date = Column(Date)
+    death_date = Column(Date)
     member_number = Column(String(50), unique=True, index=True)
     status = Column(String(50), default="active")
     fee_status = Column(String(50), default="paid")
@@ -27,6 +29,15 @@ class Member(Base):
     notes = relationship("MemberNote", back_populates="member", cascade="all, delete-orphan")
     custom_values = relationship("CustomFieldValue", back_populates="member", cascade="all, delete-orphan")
     group_memberships = relationship("GroupMembership", back_populates="member", cascade="all, delete-orphan")
+
+    @property
+    def age(self):
+        if not self.birthdate:
+            return None
+        end = self.death_date if self.death_date else date_cls.today()
+        return end.year - self.birthdate.year - (
+            (end.month, end.day) < (self.birthdate.month, self.birthdate.day)
+        )
 
 
 class MemberNote(Base):

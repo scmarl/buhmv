@@ -26,6 +26,7 @@ class MemberBase(BaseModel):
     gender: Optional[str] = None
     entry_date: Optional[date] = None
     exit_date: Optional[date] = None
+    death_date: Optional[date] = None
     member_number: Optional[str] = None
     status: str = "active"
     fee_status: str = "paid"
@@ -49,6 +50,7 @@ class GroupShort(BaseModel):
 
 class MemberOut(MemberBase):
     id: int
+    age: Optional[int] = None
     notes: list[NoteOut] = []
     groups: list[GroupShort] = []
     class Config: from_attributes = True
@@ -56,6 +58,7 @@ class MemberOut(MemberBase):
 
 class MemberListOut(MemberBase):
     id: int
+    age: Optional[int] = None
     class Config: from_attributes = True
 
 
@@ -68,6 +71,7 @@ class MemberPage(BaseModel):
 
 def _enrich(member: Member, db: Session) -> dict:
     data = {c.name: getattr(member, c.name) for c in member.__table__.columns}
+    data['age'] = member.age
     data['notes'] = [{'id': n.id, 'author': n.author, 'content': n.content, 'created_at': n.created_at}
                      for n in member.notes]
     data['groups'] = [{'id': gm.group_id, 'name': gm.group.name}
@@ -97,7 +101,8 @@ def list_members(
     if group_id is not None:
         q = q.join(Member.group_memberships).filter(GroupMembership.group_id == group_id)
     total = q.count()
-    items = q.order_by(Member.last_name).offset((page - 1) * size).limit(size).all()
+    rows = q.order_by(Member.last_name).offset((page - 1) * size).limit(size).all()
+    items = [{**{c.name: getattr(m, c.name) for c in m.__table__.columns}, 'age': m.age} for m in rows]
     return {"items": items, "total": total, "page": page, "size": size}
 
 

@@ -135,6 +135,7 @@ export default function MemberDetailPage() {
                   </select>
                 </Field>
                 <Field label="Geburtsdatum"><input type="date" {...register('birthdate')} style={inputStyle} /></Field>
+                <Field label="Alter"><input readOnly value={member?.age != null ? member.age + ' Jahre' : '—'} style={{ ...inputStyle, background: '#f9fafb', color: '#6b7280', cursor: 'default' }} /></Field>
                 <Field label="Mitgliedsnummer"><input {...register('member_number')} style={inputStyle} /></Field>
                 <Field label="Foto-URL"><input {...register('photo_url')} style={inputStyle} placeholder="https://…" /></Field>
               </div>
@@ -169,6 +170,7 @@ export default function MemberDetailPage() {
                 </Field>
                 <Field label="Eintrittsdatum"><input type="date" {...register('entry_date')} style={inputStyle} /></Field>
                 <Field label="Austrittsdatum"><input type="date" {...register('exit_date')} style={inputStyle} /></Field>
+                <Field label="Verstorben am"><input type="date" {...register('death_date')} style={inputStyle} /></Field>
                 <Field label="Aktiv">
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                     <input type="checkbox" {...register('is_active')} style={{ width: 16, height: 16 }} />
