@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useEffect, useState } from 'react'
 import api from '../api/client'
+import { useMe } from '../hooks/useAuth'
 
-type Tab = 'stammdaten' | 'kontakt' | 'mitgliedschaft' | 'gruppen' | 'notizen'
+type Tab = 'stammdaten' | 'kontakt' | 'mitgliedschaft' | 'kontodaten' | 'gruppen' | 'notizen'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'stammdaten', label: 'Stammdaten' },
   { id: 'kontakt', label: 'Kontakt' },
   { id: 'mitgliedschaft', label: 'Mitgliedschaft' },
+  { id: 'kontodaten', label: 'Kontodaten' },
   { id: 'gruppen', label: 'Gruppen' },
   { id: 'notizen', label: 'Notizen' },
 ]
@@ -19,6 +21,8 @@ export default function MemberDetailPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const isNew = id === 'new'
+  const { data: me } = useMe()
+  const canSeeKonto = me?.role === 'admin' || me?.role === 'office'
   const [activeTab, setActiveTab] = useState<Tab>('stammdaten')
   const [noteText, setNoteText] = useState('')
 
@@ -78,7 +82,7 @@ export default function MemberDetailPage() {
     <div style={{ maxWidth: 820 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <button onClick={() => navigate('/members')}
+        <button onClick={() => navigate(-1)}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 20, lineHeight: 1 }}>←</button>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{title}</h1>
@@ -95,7 +99,7 @@ export default function MemberDetailPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '2px solid #e5e7eb', marginBottom: 24 }}>
-        {TABS.map(tab => (
+        {TABS.filter(tab => tab.id !== 'kontodaten' || canSeeKonto).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             style={{
               padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
@@ -118,7 +122,7 @@ export default function MemberDetailPage() {
       </div>
 
       {/* Form for data tabs */}
-      {(activeTab === 'stammdaten' || activeTab === 'kontakt' || activeTab === 'mitgliedschaft') && (
+      {(activeTab === 'stammdaten' || activeTab === 'kontakt' || activeTab === 'mitgliedschaft' || activeTab === 'kontodaten') && (
         <form onSubmit={handleSubmit(d => save.mutate(d))}>
           <div style={{ background: '#fff', borderRadius: 8, padding: 28, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 16 }}>
 
@@ -154,20 +158,6 @@ export default function MemberDetailPage() {
 
             {activeTab === 'mitgliedschaft' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                <Field label="Status">
-                  <select {...register('status')} style={inputStyle}>
-                    <option value="active">Aktiv</option>
-                    <option value="inactive">Inaktiv</option>
-                    <option value="honorary">Ehrenmitglied</option>
-                  </select>
-                </Field>
-                <Field label="Beitragsstatus">
-                  <select {...register('fee_status')} style={inputStyle}>
-                    <option value="paid">Bezahlt</option>
-                    <option value="open">Offen</option>
-                    <option value="exempt">Befreit</option>
-                  </select>
-                </Field>
                 <Field label="Eintrittsdatum"><input type="date" {...register('entry_date')} style={inputStyle} /></Field>
                 <Field label="Austrittsdatum"><input type="date" {...register('exit_date')} style={inputStyle} /></Field>
                 <Field label="Verstorben am"><input type="date" {...register('death_date')} style={inputStyle} /></Field>
@@ -180,13 +170,32 @@ export default function MemberDetailPage() {
               </div>
             )}
           </div>
+            {activeTab === 'kontodaten' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                <Field label="Bankname" style={{ gridColumn: '1 / -1' }}><input {...register('bank_name')} style={inputStyle} placeholder="z.B. Volksbank Ruhr Mitte" /></Field>
+                <Field label="IBAN"><input {...register('iban')} style={inputStyle} placeholder="DE00 0000 0000 0000 0000 00" /></Field>
+                <Field label="BIC"><input {...register('bic')} style={inputStyle} placeholder="z.B. GENODEM1GBU" /></Field>
+                <Field label="SEPA Lastschrift VfS">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <input type="checkbox" {...register('sepa_ls_vfs')} style={{ width: 16, height: 16 }} />
+                    <span style={{ fontSize: 14 }}>Mandat erteilt</span>
+                  </label>
+                </Field>
+                <Field label="SEPA Lastschrift AHV">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <input type="checkbox" {...register('sepa_ls_ahv')} style={{ width: 16, height: 16 }} />
+                    <span style={{ fontSize: 14 }}>Mandat erteilt</span>
+                  </label>
+                </Field>
+              </div>
+            )}
 
           <div style={{ display: 'flex', gap: 12 }}>
             <button type="submit" disabled={save.isPending}
               style={{ padding: '9px 24px', background: '#2a5298', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 600, cursor: 'pointer' }}>
               {save.isPending ? 'Speichern…' : 'Speichern'}
             </button>
-            <button type="button" onClick={() => { reset(); navigate('/members') }}
+            <button type="button" onClick={() => { reset(); navigate(-1) }}
               style={{ padding: '9px 20px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer' }}>
               Abbrechen
             </button>

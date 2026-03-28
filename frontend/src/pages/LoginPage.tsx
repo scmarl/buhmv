@@ -24,7 +24,17 @@ export default function LoginPage() {
             <input type="password" {...register('password', { required: true })}
               style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 4 }} />
           </div>
-          {login.isError && <div style={{ color: 'red', marginBottom: 12, fontSize: 13 }}>Anmeldung fehlgeschlagen</div>}
+          {login.isError && (() => {
+            const err = login.error as any
+            const status = err?.response?.status
+            const msg = err?.response?.data?.detail ?? 'Anmeldung fehlgeschlagen'
+            const locked = status === 403
+            return (
+              <div style={{ color: locked ? '#dc2626' : '#b45309', marginBottom: 12, fontSize: 13, background: locked ? '#fef2f2' : '#fffbeb', border: `1px solid ${locked ? '#fca5a5' : '#fcd34d'}`, borderRadius: 5, padding: '8px 12px', lineHeight: 1.4 }}>
+                {msg}
+              </div>
+            )
+          })()}
           <button type="submit" disabled={login.isPending}
             style={{ width: '100%', padding: '10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 600, cursor: 'pointer' }}>
             {login.isPending ? 'Anmelden…' : 'Anmelden'}

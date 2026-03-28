@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, String, Boolean, Enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from app.db.session import Base
 
 
@@ -13,10 +13,12 @@ class Role(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=False)
+    id              = Column(Integer, primary_key=True, index=True)
+    username        = Column(String, unique=True, index=True, nullable=False)
+    email           = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role = Column(Enum(Role), default=Role.member, nullable=False)
-    is_active = Column(Boolean, default=True)
-    member_id = Column(Integer, nullable=True)
+    role            = Column(String(50), default="member", nullable=False)
+    is_active       = Column(Boolean, default=True)
+    member_id       = Column(Integer, nullable=True)
+    failed_logins   = Column(Integer, default=0)      # consecutive failed attempts
+    locked_until    = Column(DateTime, nullable=True)  # None = not locked

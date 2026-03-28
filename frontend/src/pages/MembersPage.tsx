@@ -2,12 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api/client'
+import EmailComposeModal from '../components/EmailComposeModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface GroupNode { id: number; name: string; member_count: number; children: GroupNode[] }
 interface FieldDef { name: string; label: string; field_type: string }
-interface ListView { id: number; name: string; columns: string[]; is_default: boolean }
+interface ListView { id: number; name: string; columns: string[]; is_default: boolean; is_shared: boolean; owner_id?: number|null }
 
 function findGroupName(nodes: GroupNode[], id: number): string | null {
   for (const n of nodes) {
@@ -25,6 +26,7 @@ const DEFAULT_COLS = ['member_number', 'last_name', 'first_name', 'email', 'age'
 // Virtual fields not in the fields API
 const VIRTUAL_FIELDS: FieldDef[] = [
   { name: 'age', label: 'Alter', field_type: 'number' },
+  { name: 'groups', label: 'Gruppe', field_type: 'text' },
 ]
 
 const NON_DISPLAYABLE = new Set(['photo_url', 'notes_field', 'file', 'image'])
@@ -32,6 +34,10 @@ const NON_DISPLAYABLE = new Set(['photo_url', 'notes_field', 'file', 'image'])
 function formatCell(value: unknown, fieldType: string, fieldName: string): string {
   if (value == null || value === '') return '—'
   if (fieldName === 'age') return value + ' J.'
+  if (fieldName === 'groups') {
+    if (Array.isArray(value)) return value.map((g: any) => g.name).join(', ') || '—'
+    return '—'
+  }
   if (fieldName === 'is_active') return value ? 'Ja' : 'Nein'
   if (fieldType === 'date') {
     const d = new Date(value as string)
@@ -62,9 +68,9 @@ function ActionDropdown({ label, items, variant = 'default' }: {
     <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={() => setOpen(o => !o)} style={{
         display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-        border: variant === 'primary' ? 'none' : '1px solid #d1d5db', borderRadius: 6,
-        background: variant === 'primary' ? '#16a34a' : '#fff',
-        color: variant === 'primary' ? '#fff' : '#374151',
+        border: open ? 'none' : '1px solid #d1d5db', borderRadius: 6,
+        background: open ? '#16a34a' : '#fff',
+        color: open ? '#fff' : '#374151',
         cursor: 'pointer', fontSize: 13, fontWeight: 600,
         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
       }}>
@@ -227,7 +233,9 @@ function AnsichtDropdown({
   views,
   currentCols,
   activeViewId,
+  pinnedViewIds,
   onLoad,
+  onTogglePin,
   onSave,
   onUpdate,
   onDelete,
@@ -235,15 +243,18 @@ function AnsichtDropdown({
   views: ListView[]
   currentCols: string[]
   activeViewId: number | null
+  pinnedViewIds: number[]
   onLoad: (view: ListView) => void
-  onSave: (name: string, isDefault: boolean) => void
-  onUpdate: (id: number, name: string, isDefault: boolean) => void
+  onTogglePin: (id: number) => void
+  onSave: (name: string, isDefault: boolean, isShared: boolean) => void
+  onUpdate: (id: number, name: string, isDefault: boolean, isShared: boolean) => void
   onDelete: (id: number) => void
 }) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'list' | 'save' | 'edit'>('list')
   const [saveName, setSaveName] = useState('')
   const [saveDefault, setSaveDefault] = useState(false)
+  const [saveShared, setSaveShared] = useState(false)
   const [editView, setEditView] = useState<ListView | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -286,10 +297,12 @@ function AnsichtDropdown({
                   <span onClick={() => { onLoad(v); setOpen(false) }}
                     style={{ flex: 1, fontSize: 13, cursor: 'pointer', color: v.id === activeViewId ? '#2a5298' : '#374151', fontWeight: v.id === activeViewId ? 600 : 400 }}>
                     {v.name}
-                    {v.is_default && <span style={{ marginLeft: 6, fontSize: 10, color: '#9ca3af' }}>Standard</span>}
+                    {v.is_default && <span style={{ marginLeft: 6, fontSize: 10, color: '#9ca3af' }}>Standard</span>}{v.is_shared && <span style={{ marginLeft: 4, fontSize: 10, color: '#7c3aed' }}>Geteilt</span>}
                   </span>
-                  <button onClick={() => { setEditView(v); setSaveName(v.name); setSaveDefault(v.is_default); setMode('edit') }}
+                  <button onClick={() => { setEditView(v); setSaveName(v.name); setSaveDefault(v.is_default); setSaveShared(v.is_shared); setMode('edit') }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9ca3af', padding: '2px 4px' }}>✎</button>
+                  <button onClick={() => onTogglePin(v.id)} title={pinnedViewIds.includes(v.id) ? 'Aus Schnellauswahl entfernen' : 'Als Schnellauswahl-Button anzeigen'}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: pinnedViewIds.includes(v.id) ? '#2a5298' : '#d1d5db', padding: '2px 4px' }}>📌</button>
                   <button onClick={() => onDelete(v.id)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#dc2626', padding: '2px 4px' }}>✕</button>
                 </div>
@@ -298,7 +311,7 @@ function AnsichtDropdown({
                 <p style={{ fontSize: 13, color: '#9ca3af', padding: '12px', margin: 0 }}>Noch keine gespeicherten Ansichten.</p>
               )}
               <div style={{ borderTop: '1px solid #f3f4f6', padding: '8px 12px' }}>
-                <button onClick={() => { setSaveName(''); setSaveDefault(false); setMode('save') }}
+                <button onClick={() => { setSaveName(''); setSaveDefault(false); setSaveShared(false); setMode('save') }}
                   style={{ width: '100%', padding: '7px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                   + Aktuelle Ansicht speichern
                 </button>
@@ -314,10 +327,21 @@ function AnsichtDropdown({
               <input autoFocus value={saveName} onChange={e => setSaveName(e.target.value)}
                 placeholder="Name der Ansicht"
                 style={{ width: '100%', padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 13, boxSizing: 'border-box', marginBottom: 8 }} />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
                 <input type="checkbox" checked={saveDefault} onChange={e => setSaveDefault(e.target.checked)} />
                 Als Standard-Ansicht
               </label>
+              <div style={{ marginBottom: 12 }}>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px', fontWeight: 500 }}>Sichtbarkeit</p>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 4 }}>
+                  <input type="radio" name="visibility" checked={!saveShared} onChange={() => setSaveShared(false)} />
+                  <span>Nur ich (privat)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input type="radio" name="visibility" checked={saveShared} onChange={() => setSaveShared(true)} />
+                  <span>Alle Benutzer (geteilt)</span>
+                </label>
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setMode('list')}
                   style={{ flex: 1, padding: '6px', border: '1px solid #d1d5db', borderRadius: 5, cursor: 'pointer', fontSize: 13, background: '#fff' }}>
@@ -326,8 +350,8 @@ function AnsichtDropdown({
                 <button
                   disabled={!saveName.trim()}
                   onClick={() => {
-                    if (mode === 'save') onSave(saveName.trim(), saveDefault)
-                    else if (editView) onUpdate(editView.id, saveName.trim(), saveDefault)
+                    if (mode === 'save') onSave(saveName.trim(), saveDefault, saveShared)
+                    else if (editView) onUpdate(editView.id, saveName.trim(), saveDefault, saveShared)
                     setMode('list'); setOpen(false)
                   }}
                   style={{ flex: 1, padding: '6px', background: '#2a5298', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
@@ -348,8 +372,10 @@ export default function MembersPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [emailModal, setEmailModal] = useState(false)
   const [columns, setColumns] = useState<string[]>(DEFAULT_COLS)
   const [activeViewId, setActiveViewId] = useState<number | null>(null)
+  const [pinnedViewIds, setPinnedViewIds] = useState<number[]>([])
   const [sortBy, setSortBy] = useState('last_name')
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
   const navigate = useNavigate()
@@ -419,6 +445,12 @@ export default function MembersPage() {
     },
   })
 
+  function togglePin(id: number) {
+    setPinnedViewIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 4 ? [...prev, id] : prev
+    )
+  }
+
   function handleColumnsChange(cols: string[]) {
     setColumns(cols)
     setActiveViewId(null)   // mark as unsaved
@@ -445,6 +477,27 @@ export default function MembersPage() {
   // Column headers (visible columns only, in order)
   const visibleFields = columns.map(name => allFields.find(f => f.name === name)).filter(Boolean) as FieldDef[]
 
+
+  async function triggerExport(format: 'csv' | 'xlsx', useCurrentCols: boolean) {
+    const params: any = {
+      format,
+      active_only: false,
+      sort_by: sortBy,
+      sort_dir: sortDir,
+    }
+    if (search) params.search = search
+    if (groupId != null) params.group_id = groupId
+    if (useCurrentCols && columns.length > 0) params.columns = columns.join(',')
+    if (selected.size > 0) params.member_ids = Array.from(selected).join(',')
+    const res = await api.get('/export/members', { params, responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = format === 'xlsx' ? 'mitglieder.xlsx' : 'mitglieder.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       {/* Header */}
@@ -470,19 +523,30 @@ export default function MembersPage() {
           { label: 'Mitglieder importieren', onClick: () => navigate('/import') },
         ]} />
         <ActionDropdown label="Exportieren" items={[
-          { label: 'Als CSV exportieren', onClick: () => navigate('/export') },
-          { label: 'Als Excel exportieren', onClick: () => navigate('/export') },
+          { label: 'CSV – aktuelle Spalten', onClick: () => triggerExport('csv', true) },
+          { label: 'CSV – alle Spalten', onClick: () => triggerExport('csv', false) },
+          { divider: true, label: '', onClick: () => {} },
+          { label: 'Excel – aktuelle Spalten', onClick: () => triggerExport('xlsx', true) },
+          { label: 'Excel – alle Spalten', onClick: () => triggerExport('xlsx', false) },
         ]} />
         <ActionDropdown label="Drucken" items={[
-          { label: 'Liste drucken', onClick: () => window.print() },
-          { label: 'Etiketten drucken', onClick: () => alert('Kommt') },
+          { label: 'Liste drucken', onClick: () => {
+            const printMembers = selected.size > 0 ? items.filter((m: any) => selected.has(m.id)) : items
+            navigate('/print', {
+              state: {
+                members: printMembers,
+                columns: visibleFields.map(f => ({ name: f.name, label: f.label, field_type: f.field_type })),
+                title: groupName ?? 'Mitgliederliste',
+              }
+            })
+          }},
+          { label: 'Etiketten drucken', onClick: () => {
+            const printMembers = selected.size > 0 ? items.filter((m: any) => selected.has(m.id)) : items
+            navigate('/label', { state: { members: printMembers, allFields, title: groupName ?? 'Mitgliederliste' } })
+          }},
         ]} />
         <ActionDropdown label="Versenden" items={[
-          { label: 'E-Mail senden', onClick: () => {
-            const addrs = items.filter((m: any) => selected.has(m.id) && m.email).map((m: any) => m.email)
-            if (addrs.length) window.location.href = 'mailto:?bcc=' + addrs.join(',')
-            else alert('Keine Mitglieder mit E-Mail ausgewählt')
-          }},
+          { label: 'E-Mail senden', onClick: () => setEmailModal(true) },
           { label: 'E-Mail-Adressen kopieren', onClick: () => {
             const addrs = items.filter((m: any) => selected.has(m.id) && m.email).map((m: any) => m.email).join('; ')
             navigator.clipboard.writeText(addrs)
@@ -504,11 +568,32 @@ export default function MembersPage() {
           views={listViews}
           currentCols={columns}
           activeViewId={activeViewId}
+          pinnedViewIds={pinnedViewIds}
           onLoad={v => { setColumns(v.columns); setActiveViewId(v.id) }}
-          onSave={(name, isDefault) => saveViewMut.mutate({ name, columns, is_default: isDefault })}
-          onUpdate={(id, name, isDefault) => updateViewMut.mutate({ id, body: { name, columns, is_default: isDefault } })}
+          onTogglePin={togglePin}
+          onSave={(name, isDefault, isShared) => saveViewMut.mutate({ name, columns, is_default: isDefault, is_shared: isShared })}
+          onUpdate={(id, name, isDefault, isShared) => updateViewMut.mutate({ id, body: { name, columns, is_default: isDefault, is_shared: isShared } })}
           onDelete={id => deleteViewMut.mutate(id)}
         />
+
+        {pinnedViewIds.length > 0 && pinnedViewIds.map(id => {
+          const v = listViews.find(x => x.id === id)
+          if (!v) return null
+          const isActive = activeViewId === id
+          return (
+            <button key={id}
+              onClick={() => { setColumns(v.columns); setActiveViewId(v.id) }}
+              style={{
+                padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+                cursor: 'pointer', whiteSpace: 'nowrap',
+                background: isActive ? '#2a5298' : '#fff',
+                color: isActive ? '#fff' : '#374151',
+                border: isActive ? 'none' : '1px solid #d1d5db',
+              }}>
+              {v.name}
+            </button>
+          )
+        })}
 
         <div style={{ width: 1, height: 24, background: '#e5e7eb', margin: '0 4px' }} />
 
@@ -598,6 +683,12 @@ export default function MembersPage() {
               style={{ padding: '5px 12px', border: '1px solid #d1d5db', borderRadius: 5, cursor: 'pointer', background: '#fff' }}>›</button>
           </div>
         </>
+      )}
+      {emailModal && (
+        <EmailComposeModal
+          recipients={items.filter((m: any) => selected.has(m.id)).map((m: any) => ({ id: m.id, name: `${m.last_name} ${m.first_name}`, email: m.email || '' }))}
+          onClose={() => setEmailModal(false)}
+        />
       )}
     </div>
   )

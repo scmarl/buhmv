@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean
+from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey
 from app.db.session import Base
 
 
@@ -9,3 +9,5 @@ class ListView(Base):
     name = Column(String(200), nullable=False)
     columns = Column(Text, nullable=False)   # JSON ["member_number","last_name",...]
     is_default = Column(Boolean, default=False)
+    is_shared = Column(Boolean, default=False)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

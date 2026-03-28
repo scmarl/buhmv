@@ -9,7 +9,7 @@ router = APIRouter(prefix="/import", tags=["import"])
 
 STANDARD_FIELDS = ["first_name", "last_name", "email", "phone", "mobile",
                    "street", "zip_code", "city", "birthdate", "gender",
-                   "entry_date", "member_number", "status", "fee_status"]
+                   "entry_date", "member_number"]
 
 
 @router.post("/validate")

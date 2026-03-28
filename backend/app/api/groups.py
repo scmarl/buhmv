@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.deps import get_current_user, require_office_or_above
+from app.api.group_access import get_allowed_group_ids
 from app.models.group import Group, GroupMembership
 from pydantic import BaseModel
 from typing import Optional
@@ -49,7 +50,12 @@ def build_tree(groups: list[Group], parent_id: Optional[int] = None) -> list[dic
 
 @router.get("")
 def list_groups(tree: bool = False, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    groups = db.query(Group).all()
+    all_groups = db.query(Group).all()
+    allowed = get_allowed_group_ids(current_user.role, db)
+    if allowed is not None:
+        groups = [g for g in all_groups if g.id in allowed]
+    else:
+        groups = all_groups
     if tree:
         return build_tree(groups)
     return [{"id": g.id, "name": g.name, "parent_id": g.parent_id,

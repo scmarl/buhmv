@@ -5,7 +5,7 @@ from app.api.deps import get_current_user
 from app.models.saved_view import SavedView
 from app.models.user import User
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 import json
 
 router = APIRouter(prefix="/views", tags=["views"])
@@ -51,6 +51,21 @@ def create_view(data: ViewCreate, db: Session = Depends(get_db), current_user: U
     db.refresh(view)
     return view
 
+
+
+
+@router.patch("/{view_id}", response_model=ViewOut)
+def patch_view(view_id: int, data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    view = db.query(SavedView).filter(SavedView.id == view_id, SavedView.owner_id == current_user.id).first()
+    if not view:
+        raise HTTPException(status_code=404, detail="View not found")
+    if "is_shared" in data:
+        view.is_shared = data["is_shared"]
+    if "name" in data:
+        view.name = data["name"]
+    db.commit()
+    db.refresh(view)
+    return view
 
 @router.delete("/{view_id}", status_code=204)
 def delete_view(view_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
